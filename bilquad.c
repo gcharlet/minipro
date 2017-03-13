@@ -16,6 +16,10 @@
 QUAD creer_quad(char *etiq,int op,char *arg1,char *arg2,char *res)
 {QUAD qd;int lres;
   qd=(struct cellquad *)malloc(sizeof(struct cellquad));
+  qd->ETIQ = NULL;
+  qd->ARG1 = NULL;
+  qd->ARG2 = NULL;
+  qd->RES = NULL;
   if (etiq !=NULL)
     {qd->ETIQ=Idalloc();
       strcpy(qd->ETIQ,etiq);}

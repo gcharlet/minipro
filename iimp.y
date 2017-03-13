@@ -3,12 +3,14 @@
   #include <string.h>
   #include "environ.h"
   #include "arbre_imp.h"
+  #include "bilquad.h"
   
   int yyerror(char *s);
 
   arbre_imp *s;
   pile *p = NULL;
   ENV e = NULL;
+  BILQUAD b;
 %}
 
 %union {
@@ -93,6 +95,143 @@ int environ_p(arbre_imp *s){
   return 0;
 }
 
+BILQUAD creer_c3a(arbre_imp *arbre, int *et, int *ct, int *va){
+  QUAD tmp;
+  BILQUAD fils1, fils2, fils3, end;
+  char *s = Idalloc();
+  char *res = NULL;
+  char *v1 = NULL, *v2 = NULL;
+  int op;
+  switch(arbre->action)
+    {
+    case MP:
+      fils1 = creer_c3a(arbre->fils[0], et, ct, va);
+      b = concatq(b, fils1);
+      sprintf(s, "ET%d", *et);
+      *et += 1;
+      tmp = creer_quad(s, St, v1, v2, res);
+      b = concatq(b, creer_bilquad(tmp));
+      free(s);
+      return b;
+      break;
+    case SE:
+      fils1 = creer_c3a(arbre->fils[0], et, ct, va);
+      fils2 = creer_c3a(arbre->fils[1], et, ct, va);
+      fils1 = concatq(fils1, fils2);
+      return fils1;
+      break;
+    case VAR:
+      op = Sk;
+      res = arbre->variable;
+      break;
+    case NB:
+      op = Afc;
+      res = Idalloc();
+      sprintf(res, "CT%d", *ct);
+      *ct += 1;
+      v1 = Idalloc();
+      sprintf(v1, "%d", arbre->valeur);
+      break;
+    case AF:
+      op = Af;
+      v1 = Idalloc();
+      strcpy(v1, arbre->fils[0]->variable);
+      fils1 = creer_c3a(arbre->fils[1], et, ct, va);
+      v2 = fils1.fin->RES;
+      break;
+    case PL:
+    case MO:
+    case MU:
+      if(arbre->action == PL)
+	op = Pl;
+      else if(arbre->action == MO)
+	op = Mo;
+      else
+	op = Mu;
+      fils1 = creer_c3a(arbre->fils[0], et, ct, va);
+      fils2 = creer_c3a(arbre->fils[1], et, ct, va);
+      v1 = fils1.fin->RES;
+      v2 = fils2.fin->RES;
+      res = Idalloc();
+      sprintf(res, "VA%d", *va);
+      *va += 1;
+      break;
+    case SK:
+      op = Sk;
+      break;
+    case IFTHEL:
+      fils1 = creer_c3a(arbre->fils[0], et, ct, va);
+      fils2 = creer_c3a(arbre->fils[1], et, ct, va);
+      fils3 = creer_c3a(arbre->fils[2], et, ct, va);
+      res = fils3.debut->ETIQ;
+      v1 = fils1.fin->RES;
+      op = Jz;
+      break;
+    case WH:
+      fils1 = creer_c3a(arbre->fils[0], et, ct, va);
+      fils2 = creer_c3a(arbre->fils[1], et, ct, va);
+      res = fils1.debut->ETIQ;
+      op = Jp;
+      break;
+    }
+  sprintf(s, "ET%d", *et);
+  *et += 1;
+  tmp = creer_quad(s, op, v1, v2, res);
+  end = creer_bilquad(tmp);
+  free(s);
+  switch(arbre->action)
+    {
+    case NB:
+      free(v1);
+      free(res);
+      break;
+    case AF:
+      end = concatq(fils1, end);
+      break;
+    case PL:
+    case MO:
+    case MU:
+      fils1 = concatq(fils1, fils2);
+      end = concatq(fils1, end);
+      free(res);
+      break;
+    case IFTHEL:
+      fils1 = concatq(fils1, end);
+      fils1 = concatq(fils1, fils2);
+      s = Idalloc();
+      sprintf(s, "ET%d", *et);
+      *et += 1;
+      res = Idalloc();
+      sprintf(res, "ET%d", *et);
+      tmp = creer_quad(s, Jp, NULL, NULL, res);
+      end = concatq(fils1, creer_bilquad(tmp));
+      end = concatq(end, fils3);
+      *et += 1;
+      tmp = creer_quad(res, Sk, NULL, NULL, NULL);
+      end = concatq(end, creer_bilquad(tmp));
+      free(s);
+      free(res);
+      break;
+    case WH:
+      fils2 = concatq(fils2, end);
+      s = Idalloc();
+      sprintf(s, "ET%d", *et);
+      *et += 1;
+      res = Idalloc();
+      sprintf(res, "ET%d", *et);
+      *et += 1;
+      v1 = fils1.fin->RES;
+      tmp = creer_quad(s, Jz, v1, NULL, res);
+      fils1 = concatq(fils1, creer_bilquad(tmp));
+      end = concatq(fils1, fils2);
+      tmp = creer_quad(res, Sk, NULL, NULL, NULL);
+      end = concatq(end, creer_bilquad(tmp));
+      free(s);
+      free(res);
+    }
+  return end;  
+}
+
 void main(){
   yyparse();
 
@@ -106,6 +245,12 @@ void main(){
     printf("%s = %d\n", tmp->ID, tmp->VAL);
     tmp = tmp->SUIV;
   }
+
+  printf("\n");
+  int et = 0, ct = 0, va = 0;
+  b = bilquad_vide();
+  creer_c3a(s, &et, &ct, &va);
+  ecrire_bilquad(b);
   
   free_arbre(s);
 }
