@@ -1,0 +1,10 @@
+u := 11;
+v := 7;
+while (u-v) do
+    (x:=u-v; y := v-u;
+    while x*y do
+        ( x := x+1;
+          y := y+1);
+    if x then u := u-v
+         else v:= v-u
+    )
