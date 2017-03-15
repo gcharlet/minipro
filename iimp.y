@@ -287,12 +287,8 @@ void main(){
   printf("\n\n");
 
   environ_p(s);
-  ENV tmp = e;
-  while(tmp != NULL){
-    printf("%s = %d\n", tmp->ID, tmp->VAL);
-    tmp = tmp->SUIV;
-  }
-
+  ecrire_env(e);
+  
   printf("\n");
   int et = 0, ct = 0, va = 0;
   b = bilquad_vide();
@@ -300,8 +296,12 @@ void main(){
   ecrire_bilquad(b);
 
   printf("\n");
-  tmp = environ_c3a(b);
-  ecrire_env(tmp);
+  e = environ_c3a(b);
+  ecrire_env(e);
+  
+  /*printf("\n");
+  BILQUAD y = creer_y86(b);
+  ecrire_bilquad(y);*/
   
   free_arbre(s);
 }
