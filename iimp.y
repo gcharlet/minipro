@@ -1,5 +1,6 @@
 %{
   #include <stdio.h>
+  #include <stdlib.h>
   #include <string.h>
   #include "environ.h"
   #include "arbre_imp.h"
@@ -240,16 +241,18 @@ ENV environ_c3a(BILQUAD tmp){
       {
       case Sk:
 	if(q->RES != NULL)
-	  initenv(c, q->RES);
+	  initenv(&c, q->RES);
 	break;
       case Af:
-
+	initenv(&c, q->ARG1);
+	affect (c, q->ARG1, valch(c, q->ARG2));
 	break;
       case St:
 	return c;
 	break;
       case Afc:
-
+	initenv(&c, q->RES);
+	affect(c, q->RES, atoi(q->ARG1));
 	break;
       case Pl:
       case Mo:
@@ -295,6 +298,10 @@ void main(){
   b = bilquad_vide();
   creer_c3a(s, &et, &ct, &va);
   ecrire_bilquad(b);
+
+  printf("\n");
+  tmp = environ_c3a(b);
+  ecrire_env(tmp);
   
   free_arbre(s);
 }
