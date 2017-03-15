@@ -1,3 +1,4 @@
+
 %{
   #include <stdio.h>
   #include <stdlib.h>
@@ -8,10 +9,7 @@
   
   int yyerror(char *s);
 
-  arbre_imp *s;
   pile *p = NULL;
-  ENV e = NULL;
-  BILQUAD b;
 %}
 
 %union {
@@ -56,42 +54,42 @@ int yyerror(char *s){
   return -1;
 }
 
-int environ_p(arbre_imp *s){
+int environ_p(arbre_imp *s, ENV *e){
   switch(s->action)
     {
     case MP:
-      environ_p(s->fils[0]);
+      environ_p(s->fils[0], e);
       break;
     case NB:
       return s->valeur;
       break;
     case VAR:
-      initenv(&e, s->variable);
-      return valch(e, s->variable);
+      initenv(e, s->variable);
+      return valch(*e, s->variable);
       break;
     case PL:
-      return eval(Pl, environ_p(s->fils[0]), environ_p(s->fils[1]));
+      return eval(Pl, environ_p(s->fils[0], e), environ_p(s->fils[1], e));
     case MO:
-      return eval(Mo, environ_p(s->fils[0]), environ_p(s->fils[1]));
+      return eval(Mo, environ_p(s->fils[0], e), environ_p(s->fils[1], e));
     case MU:
-      return eval(Mu, environ_p(s->fils[0]), environ_p(s->fils[1]));
+      return eval(Mu, environ_p(s->fils[0], e), environ_p(s->fils[1], e));
     case SE:
-      environ_p(s->fils[0]);
-      environ_p(s->fils[1]);
+      environ_p(s->fils[0], e);
+      environ_p(s->fils[1], e);
       break;
     case AF:
-      environ_p(s->fils[0]);
-      affect(e, s->fils[0]->variable, environ_p(s->fils[1]));
+      environ_p(s->fils[0], e);
+      affect(*e, s->fils[0]->variable, environ_p(s->fils[1], e));
       break;
     case IFTHEL:
-      if(environ_p(s->fils[0]) != 0)
-	environ_p(s->fils[1]);
+      if(environ_p(s->fils[0], e) != 0)
+	environ_p(s->fils[1], e);
       else
-	environ_p(s->fils[2]);
+	environ_p(s->fils[2], e);
       break;
     case WH:
-      while(environ_p(s->fils[0]) != 0)
-	environ_p(s->fils[1]);
+      while(environ_p(s->fils[0], e) != 0)
+	environ_p(s->fils[1], e);
     }
   return 0;
 }
@@ -107,23 +105,21 @@ BILQUAD creer_c3a(arbre_imp *arbre, int *et, int *ct, int *va){
     {
     case MP:
       fils1 = creer_c3a(arbre->fils[0], et, ct, va);
-      b = concatq(b, fils1);
       sprintf(s, "ET%d", *et);
       *et += 1;
       tmp = creer_quad(s, St, v1, v2, res);
-      b = concatq(b, creer_bilquad(tmp));
-      free(s);
-      return b;
+      end = concatq(fils1, creer_bilquad(tmp));
       break;
     case SE:
       fils1 = creer_c3a(arbre->fils[0], et, ct, va);
       fils2 = creer_c3a(arbre->fils[1], et, ct, va);
-      fils1 = concatq(fils1, fils2);
-      return fils1;
+      end = concatq(fils1, fils2);
       break;
     case VAR:
       op = Sk;
-      res = arbre->variable;
+      res = arbre->variable; 
+      sprintf(s, "ET%d", (*et)++);
+      end = creer_bilquad(creer_quad(s, op, v1, v2, res));
       break;
     case NB:
       op = Afc;
@@ -132,6 +128,10 @@ BILQUAD creer_c3a(arbre_imp *arbre, int *et, int *ct, int *va){
       *ct += 1;
       v1 = Idalloc();
       sprintf(v1, "%d", arbre->valeur);
+      sprintf(s, "ET%d", (*et)++);
+      end = creer_bilquad(creer_quad(s, op, v1, v2, res));
+      free(v1);
+      free(res);
       break;
     case AF:
       op = Af;
@@ -139,6 +139,9 @@ BILQUAD creer_c3a(arbre_imp *arbre, int *et, int *ct, int *va){
       strcpy(v1, arbre->fils[0]->variable);
       fils1 = creer_c3a(arbre->fils[1], et, ct, va);
       v2 = fils1.fin->RES;
+      sprintf(s, "ET%d", (*et)++);
+      end = creer_bilquad(creer_quad(s, op, v1, v2, res));
+      end = concatq(fils1, end);
       break;
     case PL:
     case MO:
@@ -156,9 +159,16 @@ BILQUAD creer_c3a(arbre_imp *arbre, int *et, int *ct, int *va){
       res = Idalloc();
       sprintf(res, "VA%d", *va);
       *va += 1;
+      sprintf(s, "ET%d", (*et)++);
+      end = creer_bilquad(creer_quad(s, op, v1, v2, res));
+      fils1 = concatq(fils1, fils2);
+      end = concatq(fils1, end);
+      free(res);
       break;
     case SK:
       op = Sk;
+      sprintf(s, "ET%d", (*et)++);
+      end = creer_bilquad(creer_quad(s, op, v1, v2, res));
       break;
     case IFTHEL:
       fils1 = creer_c3a(arbre->fils[0], et, ct, va);
@@ -167,39 +177,10 @@ BILQUAD creer_c3a(arbre_imp *arbre, int *et, int *ct, int *va){
       res = fils3.debut->ETIQ;
       v1 = fils1.fin->RES;
       op = Jz;
-      break;
-    case WH:
-      fils1 = creer_c3a(arbre->fils[0], et, ct, va);
-      fils2 = creer_c3a(arbre->fils[1], et, ct, va);
-      res = fils1.debut->ETIQ;
-      op = Jp;
-      break;
-    }
-  sprintf(s, "ET%d", *et);
-  *et += 1;
-  tmp = creer_quad(s, op, v1, v2, res);
-  end = creer_bilquad(tmp);
-  free(s);
-  switch(arbre->action)
-    {
-    case NB:
-      free(v1);
-      free(res);
-      break;
-    case AF:
-      end = concatq(fils1, end);
-      break;
-    case PL:
-    case MO:
-    case MU:
-      fils1 = concatq(fils1, fils2);
-      end = concatq(fils1, end);
-      free(res);
-      break;
-    case IFTHEL:
+      sprintf(s, "ET%d", (*et)++);
+      end = creer_bilquad(creer_quad(s, op, v1, v2, res));
       fils1 = concatq(fils1, end);
       fils1 = concatq(fils1, fils2);
-      s = Idalloc();
       sprintf(s, "ET%d", *et);
       *et += 1;
       res = Idalloc();
@@ -210,12 +191,16 @@ BILQUAD creer_c3a(arbre_imp *arbre, int *et, int *ct, int *va){
       *et += 1;
       tmp = creer_quad(res, Sk, NULL, NULL, NULL);
       end = concatq(end, creer_bilquad(tmp));
-      free(s);
       free(res);
       break;
     case WH:
+      fils1 = creer_c3a(arbre->fils[0], et, ct, va);
+      fils2 = creer_c3a(arbre->fils[1], et, ct, va);
+      res = fils1.debut->ETIQ;
+      op = Jp;
+      sprintf(s, "ET%d", (*et)++);
+      end = creer_bilquad(creer_quad(s, op, v1, v2, res));
       fils2 = concatq(fils2, end);
-      s = Idalloc();
       sprintf(s, "ET%d", *et);
       *et += 1;
       res = Idalloc();
@@ -227,9 +212,10 @@ BILQUAD creer_c3a(arbre_imp *arbre, int *et, int *ct, int *va){
       end = concatq(fils1, fils2);
       tmp = creer_quad(res, Sk, NULL, NULL, NULL);
       end = concatq(end, creer_bilquad(tmp));
-      free(s);
       free(res);
+      break;
     }
+  free(s);
   return end;  
 }
 
@@ -282,14 +268,118 @@ ENV environ_c3a(BILQUAD tmp){
   return NULL;
 }
 
-BILQUAD creer_y86(BILQUAD tmp){
+BILQUAD creer_y86(BILQUAD c3a){
   BILQUAD y86 = bilquad_vide();
-  QUAD q = tmp.debut;
+  QUAD q = c3a.debut;
+  int edx = 4;
+  char* str = Idalloc();
+  ENV address = NULL;
+  QUAD q_tmp;
+  BILQUAD tmp;
   while(q != NULL){
     switch(q->OP)
       {
       case Sk:
-	concatq(y86, creer_quad(q->ETIQ, ));
+	y86 = concatq(y86, creer_bilquad(creer_quad(q->ETIQ, empty, "nop", NULL, NULL)));
+	if(q->RES != NULL){
+	  if(rech(q->RES, address) == NULL){
+	    initenv(&address, q->RES);
+	    affect(address, q->RES, edx);
+	    sprintf(str, "%d(%%edx)", edx);
+	    edx += 4;
+	  }
+	}
+	break;
+      case St:
+	y86 = concatq(y86, creer_bilquad(creer_quad(q->ETIQ, empty, "halt", NULL, NULL)));
+	break;
+      case Af:
+	sprintf(str, "%d(%%edx),", valch(address, q->ARG2));
+	q_tmp = creer_quad(q->ETIQ, empty, "mrmovl", str, "%eax");
+	tmp = creer_bilquad(q_tmp);
+	if(rech(q->ARG1, address) == NULL){
+	  initenv(&address, q->ARG1);
+	  affect(address, q->ARG1, edx);
+	  sprintf(str, "%d(%%edx)", edx);
+	  edx += 4;
+	} else {
+	  sprintf(str, "%d(%%edx)", valch(address, q->ARG1));
+	}
+	q_tmp = creer_quad("", empty, "rmmovl", "%eax,", str);
+	tmp = concatq(tmp, creer_bilquad(q_tmp));
+	y86 = concatq(y86, tmp);
+	break;
+      case Afc:
+	sprintf(str, "%s,", q->ARG1);
+	q_tmp = creer_quad(q->ETIQ, empty, "irmovl", str, "%eax");
+	tmp = creer_bilquad(q_tmp);
+	initenv(&address, q->RES);
+	affect(address, q->RES, edx);
+	sprintf(str, "%d(%%edx)", edx);
+	edx += 4;
+	q_tmp = creer_quad("", empty, "rmmovl", "%eax,", str);
+	tmp = concatq(tmp, creer_bilquad(q_tmp));
+	y86 = concatq(y86, tmp);
+	break;
+      case Pl:
+      case Mo:
+	sprintf(str, "%d(%%edx),", valch(address, q->ARG1));
+	q_tmp = creer_quad(q->ETIQ, empty, "mrmovl", str, "%eax");
+	tmp = creer_bilquad(q_tmp);
+	sprintf(str, "%d(%%edx),", valch(address, q->ARG2));
+	q_tmp = creer_quad("", empty, "mrmovl", str, "%ebx");
+	tmp = concatq(tmp, creer_bilquad(q_tmp));
+        char *s = (q->OP==Pl)?"addl":"subl";
+	q_tmp = creer_quad("", empty, s, "%eax,", "%ebx");
+	tmp = concatq(tmp, creer_bilquad(q_tmp));
+	initenv(&address, q->RES);
+	affect(address, q->RES, edx);
+	sprintf(str, "%d(%%edx)", edx);
+	edx += 4;
+	q_tmp = creer_quad("", empty, "rmmovl", "%eax,", str);
+	tmp = concatq(tmp, creer_bilquad(q_tmp));
+	y86 = concatq(y86, tmp);
+	break;
+      case Mu:
+	sprintf(str, "%d(%%edx),", valch(address, q->ARG1));
+	q_tmp = creer_quad(q->ETIQ, empty, "mrmovl", str, "%eax");
+	tmp = creer_bilquad(q_tmp);
+	sprintf(str, "%d(%%edx),", valch(address, q->ARG2));
+	q_tmp = creer_quad("", empty, "mrmovl", str, "%ebx");
+	tmp = concatq(tmp, creer_bilquad(q_tmp));
+	q_tmp = creer_quad("", empty, "pushl", "%ebx", NULL);
+	tmp = concatq(tmp, creer_bilquad(q_tmp));
+	q_tmp = creer_quad("", empty, "pushl", "%eax", NULL);
+	tmp = concatq(tmp, creer_bilquad(q_tmp));
+	q_tmp = creer_quad("", empty, "call", "MUL", NULL);
+	tmp = concatq(tmp, creer_bilquad(q_tmp));
+	q_tmp = creer_quad("", empty, "popl", "%eax", NULL);
+	tmp = concatq(tmp, creer_bilquad(q_tmp));
+	q_tmp = creer_quad("", empty, "popl", "%ebx", NULL);
+	tmp = concatq(tmp, creer_bilquad(q_tmp));
+	q_tmp = creer_quad("", empty, "mrmovl", "0(%edx)", "%eax");
+	tmp = concatq(tmp, creer_bilquad(q_tmp));
+	initenv(&address, q->RES);
+	affect(address, q->RES, edx);
+	sprintf(str, "%d(%%edx)", edx);
+	edx += 4;
+	q_tmp = creer_quad("", empty, "rmmovl", "%eax,", str);
+	tmp = concatq(tmp, creer_bilquad(q_tmp));
+	y86 = concatq(y86, tmp);
+	break;
+      case Jp:
+	q_tmp = creer_quad(q->ETIQ, empty, "jump", q->RES, NULL);
+	y86 = concatq(y86, creer_bilquad(q_tmp));
+	break;
+      case Jz:
+	sprintf(str, "%d(%%edx),", valch(address, q->ARG1));
+	q_tmp = creer_quad(q->ETIQ, empty, "mrmovl", str, "%eax");
+	tmp = creer_bilquad(q_tmp);
+	q_tmp = creer_quad("", empty, "andl", "%eax", "%eax");
+	tmp = concatq(tmp, creer_bilquad(q_tmp));
+	q_tmp = creer_quad("", empty, "je", q->RES, NULL);
+	tmp = concatq(tmp, creer_bilquad(q_tmp));
+	y86 = concatq(y86, tmp);
 	break;
       }
     q = q->SUIV;
@@ -297,29 +387,82 @@ BILQUAD creer_y86(BILQUAD tmp){
   return y86;
 }
 
+void ecrire_y86(BILQUAD y){
+  printf("                  .pos      0         #debut zone code \n");
+  printf("INIT      :irmovl Data,     %edx      #adresse de la zone de donnees\n");
+  printf("           irmovl 256,      %eax      #espace pile\n");
+  printf("           addl   %edx,     %eax                \n");
+  printf("           rrmovl %eax,     %esp      #init pile \n");
+  printf("           rrmovl %eax,     %ebp      \n");
+  ecrire_bilquad(y);
+  printf("MUL       :nop                        #ssprog mult:M[M[%edx]]:=X*Y\n");
+  printf("           mrmovl 4(%esp),  %eax      #A := X   \n");
+  printf("           mrmovl 8(%esp),  %ebx      # B:= Y   \n");
+  printf("           andl   %eax,     %eax      # si A==0 return 0\n");
+  printf("           je     END                           \n");
+  printf("SIGN      :nop                        #si A <= 0 alors (X:= -A,Y:= -B)\n");
+  printf("           jg     MULPLUS             #cas ou A > 0\n");
+  printf("           irmovl 0,        %ecx                \n");
+  printf("           subl   %eax,     %ecx                \n");
+  printf("           rrmovl %ecx,     %eax                \n");
+  printf("           rmmovl %eax,     4(%esp)   #X := -A  \n");
+  printf("           irmovl 0,        %ecx                \n");
+  printf("           subl   %ebx,     %ecx                \n");
+  printf("           rrmovl %ecx,     %ebx                \n");
+  printf("           rmmovl %ebx,     8(%esp)   #Y := -B  \n");
+  printf("MULPLUS   :nop                        #ssprog X>0->M[M[%edx]]:=X*Y\n");
+  printf("           mrmovl 4(%esp),  %eax      #A := X   \n");
+  printf("           andl   %eax,     %eax      # si X==0 return 0\n");
+  printf("           je     END                           \n");
+  printf("           irmovl 1,        %esi      # A:=A-1  \n");
+  printf("           subl   %esi,     %eax                \n");
+  printf("           mrmovl 8(%esp),  %ebx      # B:= Y   \n");
+  printf("           pushl  %ebx                # empiler B, puis A\n");
+  printf("           pushl  %eax                          \n");
+  printf("           call   MULPLUS             # M[%edx]:= A * B=(X-1) * Y\n");
+  printf("           popl   %eax                # depiler A puis B\n");
+  printf("           popl   %eax                          \n");
+  printf("           mrmovl 0(%edx),  %eax      # M[%edx]:= M[%edx] + Y\n");
+  printf("           mrmovl 8(%esp),  %ebx                \n");
+  printf("           addl   %ebx,     %eax                \n");
+  printf("           rmmovl %eax,     0(%edx)   #end MUL(X<>0) ret(Z)\n");
+  printf("           ret                                  \n");
+  printf("END       :irmovl 0,        %eax      #end MUL(X==0) ret(Z)\n");
+  printf("           rmmovl %eax,     0(%edx)             \n");
+  printf("           ret                                  \n");
+  printf("                  .align    8         #debut zone donnees\n");
+  printf("Data      :                                     \n");
+}
+
 void main(){
   yyparse();
 
-  s = creer_arbre(p);
+  ENV e = NULL;
+  arbre_imp *s = creer_arbre(p);
+
+  printf("arbre de syntaxe abstraite\n");
   afficher_arbre_imp(s);
   printf("\n\n");
 
-  environ_p(s);
+  environ_p(s, &e);
+  printf("environnement imp\n");
   ecrire_env(e);
-  
   printf("\n");
-  int et = 0, ct = 0, va = 0;
-  b = bilquad_vide();
-  creer_c3a(s, &et, &ct, &va);
-  ecrire_bilquad(b);
 
+  int et = 0, ct = 0, va = 0;
+  BILQUAD c3a = creer_c3a(s, &et, &ct, &va);
+  printf("code C3A\n");
+  ecrire_bilquad(c3a);
   printf("\n");
-  e = environ_c3a(b);
-  ecrire_env(e);
   
+  e = environ_c3a(c3a);
+  printf("environnement c3a");
+  ecrire_env(e);
   printf("\n");
-  BILQUAD y = creer_y86(b);
-  ecrire_bilquad(y);
+  
+  BILQUAD y = creer_y86(c3a);
+  printf("code Y86\n");
+  ecrire_y86(y);
   
   free_arbre(s);
 }
