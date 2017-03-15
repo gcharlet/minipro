@@ -272,9 +272,10 @@ BILQUAD creer_y86(BILQUAD tmp){
     switch(q->OP)
       {
       case Sk:
-	
+	concatq(y86, creer_quad(q->ETIQ, ));
 	break;
       }
+    q = q->SUIV;
   }
   return y86;
 }
@@ -299,9 +300,9 @@ void main(){
   e = environ_c3a(b);
   ecrire_env(e);
   
-  /*printf("\n");
+  printf("\n");
   BILQUAD y = creer_y86(b);
-  ecrire_bilquad(y);*/
+  ecrire_bilquad(y);
   
   free_arbre(s);
 }
