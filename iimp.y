@@ -38,7 +38,7 @@ F : '(' E ')'      {$$ = $2;};
 ;
 
 C : C Se c0        {$$ = define_operateur(SE); ajouter_fils($$, $1); ajouter_fils($$, $3); s = $$;}
-| c0
+| c0               {s = $1;}
 ;
 
 c0 : V Affect E    {$$ = define_operateur(AF); ajouter_fils($$, define_variable($1)); ajouter_fils($$, $3);}
