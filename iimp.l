@@ -24,7 +24,7 @@ Nom [A-Za-z][A-Za-z0-9\_]*
 "(" {return('(');}
 ")" {return(')');}
 {Nombre} {yylval.val = atoi(yytext); return(I);}
-{Nom} {yylval.str = strdup(yytext); return(V);}
+{Nom} {yylval.str = malloc(yyleng * sizeof(char)); strcpy(yylval.str, yytext); return(V);}
 [ \n\t] {}
 . {}
 %%
