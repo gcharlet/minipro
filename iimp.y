@@ -262,6 +262,20 @@ ENV environ_c3a(BILQUAD tmp){
   return NULL;
 }
 
+BILQUAD creer_y86(BILQUAD tmp){
+  BILQUAD y86 = bilquad_vide();
+  QUAD q = tmp.debut;
+  while(q != NULL){
+    switch(q->OP)
+      {
+      case Sk:
+	
+	break;
+      }
+  }
+  return y86;
+}
+
 void main(){
   yyparse();
 
