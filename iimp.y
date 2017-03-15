@@ -242,10 +242,12 @@ ENV environ_c3a(BILQUAD tmp){
       case Sk:
 	if(q->RES != NULL)
 	  initenv(&c, q->RES);
+	q = q->SUIV;
 	break;
       case Af:
 	initenv(&c, q->ARG1);
 	affect (c, q->ARG1, valch(c, q->ARG2));
+	q = q->SUIV;
 	break;
       case St:
 	return c;
@@ -253,14 +255,29 @@ ENV environ_c3a(BILQUAD tmp){
       case Afc:
 	initenv(&c, q->RES);
 	affect(c, q->RES, atoi(q->ARG1));
+	q = q->SUIV;
 	break;
       case Pl:
       case Mo:
       case Mu:
-
+	initenv (&c, q->RES);
+	affect (c, q->RES, eval(q->OP, valch(c, q->ARG1), valch(c, q->ARG2)));
+	q = q->SUIV;
 	break;
+      case Jz:
+	if (valch (c, q->ARG1) == 0) {
+	  q = rechbq (q->RES, tmp);
+	}
+	else {
+	  q = q->SUIV;
+	}
+	break;
+      case Jp:
+	q = rechbq (q->RES, tmp);
+	break;
+      default:
+	q = q->SUIV;
       }
-    q = q->SUIV;
   }
   return NULL;
 }
