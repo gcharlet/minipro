@@ -1,4 +1,3 @@
-
 %{
   #include <stdio.h>
   #include <stdlib.h>
@@ -8,7 +7,7 @@
   #include "bilquad.h"
   
   int yyerror(char *s);
-
+  int yylex();
   pile *p = NULL;
 %}
 
@@ -54,11 +53,11 @@ int yyerror(char *s){
   return -1;
 }
 
-int environ_p(arbre_imp *s, ENV *e){
+int environ_imp(arbre_imp *s, ENV *e){
   switch(s->action)
     {
     case MP:
-      environ_p(s->fils[0], e);
+      environ_imp(s->fils[0], e);
       break;
     case NB:
       return s->valeur;
@@ -68,28 +67,28 @@ int environ_p(arbre_imp *s, ENV *e){
       return valch(*e, s->variable);
       break;
     case PL:
-      return eval(Pl, environ_p(s->fils[0], e), environ_p(s->fils[1], e));
+      return eval(Pl, environ_imp(s->fils[0], e), environ_imp(s->fils[1], e));
     case MO:
-      return eval(Mo, environ_p(s->fils[0], e), environ_p(s->fils[1], e));
+      return eval(Mo, environ_imp(s->fils[0], e), environ_imp(s->fils[1], e));
     case MU:
-      return eval(Mu, environ_p(s->fils[0], e), environ_p(s->fils[1], e));
+      return eval(Mu, environ_imp(s->fils[0], e), environ_imp(s->fils[1], e));
     case SE:
-      environ_p(s->fils[0], e);
-      environ_p(s->fils[1], e);
+      environ_imp(s->fils[0], e);
+      environ_imp(s->fils[1], e);
       break;
     case AF:
-      environ_p(s->fils[0], e);
-      affect(*e, s->fils[0]->variable, environ_p(s->fils[1], e));
+      environ_imp(s->fils[0], e);
+      affect(*e, s->fils[0]->variable, environ_imp(s->fils[1], e));
       break;
     case IFTHEL:
-      if(environ_p(s->fils[0], e) != 0)
-	environ_p(s->fils[1], e);
+      if(environ_imp(s->fils[0], e) != 0)
+	environ_imp(s->fils[1], e);
       else
-	environ_p(s->fils[2], e);
+	environ_imp(s->fils[2], e);
       break;
     case WH:
-      while(environ_p(s->fils[0], e) != 0)
-	environ_p(s->fils[1], e);
+      while(environ_imp(s->fils[0], e) != 0)
+	environ_imp(s->fils[1], e);
     }
   return 0;
 }
@@ -357,7 +356,7 @@ BILQUAD creer_y86(BILQUAD c3a){
 	tmp = concatq(tmp, creer_bilquad(q_tmp));
 	q_tmp = creer_quad("", empty, "popl", "%ebx", NULL);
 	tmp = concatq(tmp, creer_bilquad(q_tmp));
-	q_tmp = creer_quad("", empty, "mrmovl", "0(%edx)", "%eax");
+	q_tmp = creer_quad("", empty, "mrmovl", "0(%edx),", "%eax");
 	tmp = concatq(tmp, creer_bilquad(q_tmp));
 	initenv(&address, q->RES);
 	affect(address, q->RES, edx);
@@ -375,7 +374,7 @@ BILQUAD creer_y86(BILQUAD c3a){
 	sprintf(str, "%d(%%edx),", valch(address, q->ARG1));
 	q_tmp = creer_quad(q->ETIQ, empty, "mrmovl", str, "%eax");
 	tmp = creer_bilquad(q_tmp);
-	q_tmp = creer_quad("", empty, "andl", "%eax", "%eax");
+	q_tmp = creer_quad("", empty, "andl", "%eax,", "%eax");
 	tmp = concatq(tmp, creer_bilquad(q_tmp));
 	q_tmp = creer_quad("", empty, "je", q->RES, NULL);
 	tmp = concatq(tmp, creer_bilquad(q_tmp));
@@ -388,49 +387,49 @@ BILQUAD creer_y86(BILQUAD c3a){
 }
 
 void ecrire_y86(BILQUAD y){
-  printf("                  .pos      0         #debut zone code \n");
-  printf("INIT      :irmovl Data,     %edx      #adresse de la zone de donnees\n");
-  printf("           irmovl 256,      %eax      #espace pile\n");
-  printf("           addl   %edx,     %eax                \n");
-  printf("           rrmovl %eax,     %esp      #init pile \n");
-  printf("           rrmovl %eax,     %ebp      \n");
+  printf("                      .pos      0         #debut zone code \n");
+  printf("INIT      :irmovl     Data,     %%edx      #adresse de la zone de donnees\n");
+  printf("           irmovl     256,      %%eax      #espace pile\n");
+  printf("           addl       %%edx,     %%eax                \n");
+  printf("           rrmovl     %%eax,     %%esp      #init pile \n");
+  printf("           rrmovl     %%eax,     %%ebp      \n");
   ecrire_bilquad(y);
-  printf("MUL       :nop                        #ssprog mult:M[M[%edx]]:=X*Y\n");
-  printf("           mrmovl 4(%esp),  %eax      #A := X   \n");
-  printf("           mrmovl 8(%esp),  %ebx      # B:= Y   \n");
-  printf("           andl   %eax,     %eax      # si A==0 return 0\n");
-  printf("           je     END                           \n");
-  printf("SIGN      :nop                        #si A <= 0 alors (X:= -A,Y:= -B)\n");
-  printf("           jg     MULPLUS             #cas ou A > 0\n");
-  printf("           irmovl 0,        %ecx                \n");
-  printf("           subl   %eax,     %ecx                \n");
-  printf("           rrmovl %ecx,     %eax                \n");
-  printf("           rmmovl %eax,     4(%esp)   #X := -A  \n");
-  printf("           irmovl 0,        %ecx                \n");
-  printf("           subl   %ebx,     %ecx                \n");
-  printf("           rrmovl %ecx,     %ebx                \n");
-  printf("           rmmovl %ebx,     8(%esp)   #Y := -B  \n");
-  printf("MULPLUS   :nop                        #ssprog X>0->M[M[%edx]]:=X*Y\n");
-  printf("           mrmovl 4(%esp),  %eax      #A := X   \n");
-  printf("           andl   %eax,     %eax      # si X==0 return 0\n");
-  printf("           je     END                           \n");
-  printf("           irmovl 1,        %esi      # A:=A-1  \n");
-  printf("           subl   %esi,     %eax                \n");
-  printf("           mrmovl 8(%esp),  %ebx      # B:= Y   \n");
-  printf("           pushl  %ebx                # empiler B, puis A\n");
-  printf("           pushl  %eax                          \n");
-  printf("           call   MULPLUS             # M[%edx]:= A * B=(X-1) * Y\n");
-  printf("           popl   %eax                # depiler A puis B\n");
-  printf("           popl   %eax                          \n");
-  printf("           mrmovl 0(%edx),  %eax      # M[%edx]:= M[%edx] + Y\n");
-  printf("           mrmovl 8(%esp),  %ebx                \n");
-  printf("           addl   %ebx,     %eax                \n");
-  printf("           rmmovl %eax,     0(%edx)   #end MUL(X<>0) ret(Z)\n");
+  printf("MUL       :nop                            #ssprog mult:M[M[%%edx]]:=X*Y\n");
+  printf("           mrmovl     4(%%esp),  %%eax      #A := X   \n");
+  printf("           mrmovl     8(%%esp),  %%ebx      # B:= Y   \n");
+  printf("           andl       %%eax,     %%eax      # si A==0 return 0\n");
+  printf("           je         END                           \n");
+  printf("SIGN      :nop                            #si A <= 0 alors (X:= -A,Y:= -B)\n");
+  printf("           jg         MULPLUS             #cas ou A > 0\n");
+  printf("           irmovl     0,        %%ecx                \n");
+  printf("           subl       %%eax,     %%ecx                \n");
+  printf("           rrmovl     %%ecx,     %%eax                \n");
+  printf("           rmmovl     %%eax,     4(%%esp)   #X := -A  \n");
+  printf("           irmovl     0,        %%ecx                \n");
+  printf("           subl       %%ebx,     %%ecx                \n");
+  printf("           rrmovl     %%ecx,     %%ebx                \n");
+  printf("           rmmovl     %%ebx,     8(%%esp)   #Y := -B  \n");
+  printf("MULPLUS   :nop                            #ssprog X>0->M[M[%%edx]]:=X*Y\n");
+  printf("           mrmovl     4(%%esp),  %%eax      #A := X   \n");
+  printf("           andl       %%eax,     %%eax      # si X==0 return 0\n");
+  printf("           je         END                           \n");
+  printf("           irmovl     1,        %%esi      # A:=A-1  \n");
+  printf("           subl       %%esi,     %%eax                \n");
+  printf("           mrmovl     8(%%esp),  %%ebx      # B:= Y   \n");
+  printf("           pushl      %%ebx                # empiler B, puis A\n");
+  printf("           pushl      %%eax                          \n");
+  printf("           call       MULPLUS             # M[%%edx]:= A * B=(X-1) * Y\n");
+  printf("           popl       %%eax                # depiler A puis B\n");
+  printf("           popl       %%eax                          \n");
+  printf("           mrmovl     0(%%edx),  %%eax      # M[%%edx]:= M[%%edx] + Y\n");
+  printf("           mrmovl     8(%%esp),  %%ebx                \n");
+  printf("           addl       %%ebx,     %%eax                \n");
+  printf("           rmmovl     %%eax,     0(%%edx)   #end MUL(X<>0) ret(Z)\n");
   printf("           ret                                  \n");
-  printf("END       :irmovl 0,        %eax      #end MUL(X==0) ret(Z)\n");
-  printf("           rmmovl %eax,     0(%edx)             \n");
+  printf("END       :irmovl     0,        %%eax      #end MUL(X==0) ret(Z)\n");
+  printf("           rmmovl     %%eax,     0(%%edx)             \n");
   printf("           ret                                  \n");
-  printf("                  .align    8         #debut zone donnees\n");
+  printf("                      .align    8         #debut zone donnees\n");
   printf("Data      :                                     \n");
 }
 
@@ -444,7 +443,7 @@ void main(){
   afficher_arbre_imp(s);
   printf("\n\n");
 
-  environ_p(s, &e);
+  environ_imp(s, &e);
   printf("environnement imp\n");
   ecrire_env(e);
   printf("\n");
@@ -456,7 +455,7 @@ void main(){
   printf("\n");
   
   e = environ_c3a(c3a);
-  printf("environnement c3a");
+  printf("environnement c3a\n");
   ecrire_env(e);
   printf("\n");
   
