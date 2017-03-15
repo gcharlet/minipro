@@ -7,44 +7,45 @@
   #include "bilquad.h"
   
   int yyerror(char *s);
-  int yylex();
-  pile *p = NULL;
+  int yylex(void);
+  arbre_imp* s;
 %}
 
 %union {
   char *str;
   int   val;
+  struct cell *s;
 }
 %start C
-%token <str>V <val>I Plus Moins Mult Wh Do If Th El Affect Skip Se
+%token<str> V
+%token<val> I
+%token Plus Moins Mult Wh Do If Th El Affect Skip Se
+%type<s> E T F c0 C
 
 %%
-E : E Plus T       {p = empiler_operateur(p, PL);}
-| E Moins T        {p = empiler_operateur(p, MO);}
+E : E Plus T       {$$ = define_operateur(PL); ajouter_fils($$, $1); ajouter_fils($$, $3);}
+| E Moins T        {$$ = define_operateur(MO); ajouter_fils($$, $1); ajouter_fils($$, $3);}
 | T
 ;
 
-T : T Mult F       {p = empiler_operateur(p, MU);}
+T : T Mult F       {$$ = define_operateur(MU); ajouter_fils($$, $1); ajouter_fils($$, $3);}
 | F
 ;
 
-F : '(' E ')'
-| I                {p = empiler_valeur(p, $1);}
-| V                {p = empiler_variable(p, $1); free($1);}
+F : '(' E ')'      {$$ = $2;};
+| I                {$$ = define_valeur($1);}
+| V                {$$ = define_variable($1); free($1);}
 ;
 
-W : V              {p = empiler_variable(p, $1); free($1);}
-;
-
-C : C Se c0        {p = empiler_operateur(p, SE);}
+C : C Se c0        {$$ = define_operateur(SE); ajouter_fils($$, $1); ajouter_fils($$, $3); s = $$;}
 | c0
 ;
 
-c0 : W Affect E    {p = empiler_operateur(p, AF);}
-| '(' C ')'
-| If E Th c0 El c0 {p = empiler_operateur(p, IFTHEL);}
-| Wh E Do c0       {p = empiler_operateur(p, WH);}
-| Skip             {p = empiler_operateur(p, SK);}
+c0 : V Affect E    {$$ = define_operateur(AF); ajouter_fils($$, define_variable($1)); ajouter_fils($$, $3);}
+| '(' C ')'        {$$ = $2;}
+| If E Th c0 El c0 {$$ = define_operateur(IFTHEL); ajouter_fils($$, $2); ajouter_fils($$, $4); ajouter_fils($$, $6);}
+| Wh E Do c0       {$$ = define_operateur(WH); ajouter_fils($$, $2); ajouter_fils($$, $4);}
+| Skip             {$$ = define_operateur(SK);}
 ;
 %%
 
@@ -435,21 +436,21 @@ void ecrire_y86(BILQUAD y){
 
 void main(){
   yyparse();
-
-  ENV e = NULL;
-  arbre_imp *s = creer_arbre(p);
+  arbre_imp *arbre = define_operateur(MP);
+  ajouter_fils(arbre, s);
 
   printf("arbre de syntaxe abstraite\n");
-  afficher_arbre_imp(s);
+  afficher_arbre_imp(arbre);
   printf("\n\n");
 
-  environ_imp(s, &e);
+  ENV e = NULL;
+  environ_imp(arbre, &e);
   printf("environnement imp\n");
   ecrire_env(e);
   printf("\n");
 
   int et = 0, ct = 0, va = 0;
-  BILQUAD c3a = creer_c3a(s, &et, &ct, &va);
+  BILQUAD c3a = creer_c3a(arbre, &et, &ct, &va);
   printf("code C3A\n");
   ecrire_bilquad(c3a);
   printf("\n");
@@ -463,5 +464,5 @@ void main(){
   printf("code Y86\n");
   ecrire_y86(y);
   
-  free_arbre(s);
+  free_arbre(arbre);
 }
