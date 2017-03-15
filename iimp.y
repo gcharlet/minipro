@@ -232,6 +232,36 @@ BILQUAD creer_c3a(arbre_imp *arbre, int *et, int *ct, int *va){
   return end;  
 }
 
+ENV environ_c3a(BILQUAD tmp){
+  ENV c = NULL;
+  QUAD q = tmp.debut;
+  while(q != NULL){
+    switch(q->OP)
+      {
+      case Sk:
+	if(q->RES != NULL)
+	  initenv(c, q->RES);
+	break;
+      case Af:
+
+	break;
+      case St:
+	return c;
+	break;
+      case Afc:
+
+	break;
+      case Pl:
+      case Mo:
+      case Mu:
+
+	break;
+      }
+    q = q->SUIV;
+  }
+  return NULL;
+}
+
 void main(){
   yyparse();
 
